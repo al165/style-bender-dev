@@ -37,3 +37,17 @@ class SmoothTransform:
         for i, v in enumerate(trans_mat):
             plt.plot(trans_mat[i]-(i+1)/10, **plot_args)
         plt.show()
+        
+        
+
+### EXAMPLE     
+# src, dest = joblib.load("activations.pkl")
+
+# k = 300
+# ps, qs = src[0][:k], dest[0][:k]
+# ps, qs = ps/ps.sum(), qs/qs.sum()
+
+# sm = SmoothTransform()
+# trans = sm.transform(ps, qs)
+
+# sm.plot_transform(trans, source=ps, target=qs)
