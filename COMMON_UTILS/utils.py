@@ -48,15 +48,15 @@ def plot_beat_grid(trig: np.array, ax=None):
     return ax
 
 
-def plot_audio(y: np.array, ax=None):
+def plot_audio(y: np.ndarray, sr: int=44100, ax=None):
     if ax is None:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
 
-    ax.plot(np.linspace(0, 49, len(y)), y)
-    ax.set_xticks([0, 12, 24, 36])
-
+    t = librosa.samples_to_time(np.arange(len(y)), sr=sr)
+    ax.plot(t, y)
+    
     return ax
 
 
