@@ -8,12 +8,16 @@ import soundfile as sf
 
 import torch
 
+from IPython.display import display, Audio
+
 
 def run_cmd(cmd: list):
     p = subprocess.Popen(cmd)
     p.wait()
     if p.returncode != 0:
         print("command failed")
+
+    return p.returncode
 
 
 def get_audio_files(folder, extensions=["mp3", "wav", "flac", "ogg"]):
@@ -35,6 +39,8 @@ def hash_audio(y: np.array) -> int:
     h = str(hash(y.data.tobytes()))
     return h
 
+def play(y: np.array, sr: int, autoplay: bool=False, normalize: bool=False):
+    display(Audio(y, rate=sr, autoplay=autoplay, normalize=normalize))
 
 def plot_beat_grid(trig: np.array, ax=None):
     if ax is None:

@@ -6,6 +6,83 @@ from scipy.interpolate import interp1d
 import librosa
 
 
+def matchAudioEvents(
+    y: np.ndarray,
+    sr: int,
+    src_events: np.ndarray,
+    dst_events: np.ndarray,
+    units: str = "time",
+    hq: bool = False,
+    hop_length: int = 512,
+) -> np.ndarray:
+    """
+    Warps audio such that `src_events` align with `dst_events`.
+
+    Parameters
+    ----------
+    y: np.ndarray
+    sr: int
+    src_events: np.ndarray
+    dst_events: np.ndarray
+    units: str = "time"
+        Temporal units of `src_` and `dst_events`. Must be one of
+        {"time", "frames", "samples"}.
+    hq: bool = False
+    hop_length: int = 512
+        Only required if `units="frames"`.
+
+    Returns
+    -------
+    y_warped : np.ndarray
+    """
+
+    if len(src_events) != len(dst_events):
+        raise ValueError(
+            f"`src_events` (len={len(src_events)}) not equal to `dst_events` (len={len(dst_events)})."
+        )
+
+    if hq:
+        try:
+            import pyrubberband
+        except ImportError:
+            warnings.warn(
+                "`hq=True` requires `pyrubberband` (not found), setting `hq=False`"
+            )
+            hq = False
+
+    if units == "time":
+        src_bounds = librosa.time_to_samples(src_events, sr=sr)
+        dst_bounds = librosa.time_to_samples(dst_events, sr=sr)
+    elif units == "samples":
+        src_bounds = int(src_events)
+        dst_bounds = int(dst_events)
+    elif units == "frames":
+        src_bounds = librosa.frames_to_samples(src_events, hop_length=hop_length)
+        dst_bounds = librosa.frames_to_samples(dst_events, hop_length=hop_length)
+    else:
+        raise ValueError("`units` must be one of {'time', 'samples', 'frames'}")
+
+    src_segments = np.split(y, src_bounds)
+    dst_widths = np.diff(dst_bounds, prepend=0, append=len(y))
+
+    y_warped = []
+    for s, d_w in zip(src_segments, dst_widths):
+        if d_w == 0:
+            continue
+        rate = len(s) / d_w
+
+        if rate <= 0:
+            s_warped = np.zeros(d_w)
+        elif hq:
+            s_warped = pyrubberband.pyrb.time_stretch(y=s, sr=sr, rate=rate)
+        else:
+            s_warped = librosa.effects.time_stretch(y=s, rate=rate)
+
+        y_warped.append(s_warped)
+
+    return np.concatenate(y_warped)
+
+
 def quantiseAudio(y: np.ndarray, sr: int, db: np.array, hq=False) -> np.ndarray:
     """
     Warps audio such that the given downbeats `db` are regularly spaced
@@ -46,7 +123,7 @@ def warpAudio(
     db_src: np.ndarray,
     db_dst: np.ndarray,
     sr: int,
-) -> tuple:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple, tuple]:
 
     """
     Warps the `src` audio to match the downbeats of `dst`.
@@ -78,7 +155,7 @@ def warpAudio(
         assume_sorted=True,
     )
 
-    idxs_dst = librosa.time_to_samples((db_dst[0], db_src[num_bars - 1]), sr=sr)
+    idxs_dst = librosa.time_to_samples((db_dst[0], db_dst[num_bars - 1]), sr=sr)
 
     y_src_warped = mapping(np.linspace(0, 1, idxs_dst[1] - idxs_dst[0]))
 
