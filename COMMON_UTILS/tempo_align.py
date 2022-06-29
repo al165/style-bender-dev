@@ -107,7 +107,9 @@ def quantiseAudio(y: np.ndarray, sr: int, db: np.array, hq=False) -> np.ndarray:
     y_q = [bars[0]]
     for i, b in enumerate(bars[1:-1]):
         fix_rate = len(b) / q_bar_len
-        if hq:
+        if fix_rate <= 0:
+            b_q = np.zeros(len(b))
+        elif hq:
             b_q = pyrubberband.pyrb.time_stretch(y=b, sr=sr, rate=fix_rate)
         else:
             b_q = librosa.effects.time_stretch(y=b, rate=fix_rate)
