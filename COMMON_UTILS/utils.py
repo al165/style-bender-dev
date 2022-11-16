@@ -39,8 +39,10 @@ def hash_audio(y: np.array) -> int:
     h = str(hash(y.data.tobytes()))
     return h
 
-def play(y: np.array, sr: int, autoplay: bool=False, normalize: bool=False):
+
+def play(y: np.array, sr: int, autoplay: bool = False, normalize: bool = False):
     display(Audio(y, rate=sr, autoplay=autoplay, normalize=normalize))
+
 
 def plot_beat_grid(trig: np.array, ax=None):
     if ax is None:
@@ -54,16 +56,22 @@ def plot_beat_grid(trig: np.array, ax=None):
     return ax
 
 
-def plot_audio(y: np.ndarray, sr: int=44100, ax=None):
+def plot_audio(y: np.ndarray, sr: int = 44100, ax=None, **kwargs):
     if ax is None:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
 
     t = librosa.samples_to_time(np.arange(len(y)), sr=sr)
-    ax.plot(t, y)
-    
+    ax.plot(t, y, **kwargs)
+
     return ax
+
+
+def normalise(y: np.ndarray) -> np.ndarray:
+    if y.max() > 1.0 or y.min() < -1.0:
+        y /= max(y.max(), -y.min())
+    return y
 
 
 def split_audio_bars(y: np.array, downbeats: np.array, sr: int) -> list:

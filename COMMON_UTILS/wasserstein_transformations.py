@@ -31,10 +31,16 @@ class SmoothTransition:
                 pi[k] -= 1
             self.src_peaks[i] = (pi, ph, ps)
 
+            # save a typical peak for use in creating new peaks
+            #candidate_peaks_idxs = np.where(ph > ph.max()/2)
+            #
+            #self.src_typical_peak
+
             pi, ph, ps = self.get_peak_data(np.insert(self.trg[i], 0, 0))
             for k in pi.keys():
                 pi[k] -= 1
             self.trg_peaks[i] = (pi, ph, ps)
+
 
 
     @staticmethod
@@ -114,6 +120,7 @@ class SmoothTransition:
 
         peak = np.concatenate([atk, dec[1:]])
         return peak, len(atk) - 1
+
 
 
 class SmoothTransform:

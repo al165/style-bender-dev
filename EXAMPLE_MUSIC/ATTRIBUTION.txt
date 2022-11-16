@@ -1,0 +1,8 @@
+Filename        Artist/Track Name                                   License
+-------------------------------------------------------------------------------
+house.wav:      Captive Portal - Band Hiatus (The Reflection)       CC-BY-SA
+rock.wav:       Delay 77 - Future                                   CC-BY-SA
+country.wav:    Derek Clegg - Blind                                 CC-BY-NC
+salsa.wav:      SONGO 21 - De Cuba                                  CC-BY-NC-SA
+techno.wav:     The House Artists - Strip                           CC-BY-NC-SA
+jazz.wav:       Till Paradiso - Did You See My Budgie               CC-BY-NC-SA

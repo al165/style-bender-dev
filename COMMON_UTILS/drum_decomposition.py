@@ -13,7 +13,7 @@ import librosa
 import librosa.display
 
 sys.path.append("../COMMON_UTILS/")
-from utils import env_sample
+from utils import env_sample, normalise
 
 
 def getDecomposition(
@@ -21,8 +21,8 @@ def getDecomposition(
     window_size: int = 2048,
     T: int = 10,
     R: int = 1,
-    H=None,
-    W=None,
+    H: np.ndarray = None,
+    W: np.ndarray = None,
     beta: float = 1,
     max_iter: int = 1000,
     tol: float = 0.0001,
@@ -33,8 +33,9 @@ def getDecomposition(
     device="cpu",
     trainable_W: bool = True,
     trainable_H: bool = True,
-    W_mask=None,
-    H_mask=None,
+    W_mask: np.ndarray = None,
+    H_mask: np.ndarray = None,
+    hop_length: int = 512,
 ):
     """Decompose drum audio `y`.
 
@@ -46,7 +47,7 @@ def getDecomposition(
         pass
 
     S = torch.stft(
-        y, window_size, window=torch.hann_window(window_size), return_complex=True
+        y, window_size, window=torch.hann_window(window_size), return_complex=True, hop_length=hop_length,
     ).to(device)
 
     A = torch.abs(S).unsqueeze(0)
@@ -89,7 +90,7 @@ def getDecomposition(
     return W, H, V, phi, net
 
 
-def plotDecomposition(W, H, V, S=None):
+def plotDecomposition(W, H, V, sr: int, S=None, hop_length: int = 512):
     """Plot decomposition.
 
     Parameters
@@ -107,7 +108,11 @@ def plotDecomposition(W, H, V, S=None):
 
     for i in range(R):
         librosa.display.specshow(
-            librosa.amplitude_to_db(W[:, i], ref=np.max), y_axis="log", ax=axes[i, 0]
+            librosa.amplitude_to_db(W[:, i], ref=np.max), 
+            y_axis="log", 
+            ax=axes[i, 0],
+            sr=sr,
+            hop_length=hop_length,
         )
         axes[i, 0].set_title(f"W_{i}")
         axes[i, 1].plot(H[i])
@@ -120,12 +125,14 @@ def plotDecomposition(W, H, V, S=None):
         y_axis="log",
         x_axis="time",
         ax=axes[-1, 1],
+        sr=sr,
+        hop_length=hop_length,
     )
     axes[-1, 1].set_title("V = HW")
     plt.show()
 
 
-def isolateSources(net, phi=None, device="cpu"):
+def isolateSources(net, phi=None, device="cpu", hop_length: int = 512):
     """
     Parameters
     ----------
@@ -143,7 +150,7 @@ def isolateSources(net, phi=None, device="cpu"):
 
         if phi is not None:
             S_r = V_hat * np.exp(1j * phi)
-            y_r = librosa.istft(S_r)
+            y_r = librosa.istft(S_r, hop_length=512)
         else:
             # use Griffin-Lim algorithm for phase recovery
             y_r = librosa.griffinlim(V_hat)
@@ -192,7 +199,7 @@ def quantiseGrids(grids: list) -> np.array:
     '''
     
     if len(grids.shape) == 2:
-        grids = grids.reshap((1, *grids.shape))
+        grids = grids.reshape((1, *grids.shape))
     
     n, ins, gs = grids.shape
     
@@ -263,7 +270,12 @@ def getPriorMap(p: np.array) -> np.array:
     return map_
 
 def splitActivationsAndAudio(
-    ys: np.array, H: np.array, downbeats: np.array, sr: int = 22050, delay: int = 1
+    ys: np.array, 
+    H: np.array, 
+    downbeats: np.array, 
+    sr: int = 22050, 
+    delay: int = 1, 
+    hop_length: int = 512,
 ) -> tuple:
 
     """
@@ -283,7 +295,7 @@ def splitActivationsAndAudio(
     bars : list[np.array]
     """
 
-    bar_frames = librosa.time_to_frames(downbeats, sr=sr) - 1
+    bar_frames = librosa.time_to_frames(downbeats, sr=sr, hop_length=hop_length) - 1
     bar_samples = librosa.time_to_samples(downbeats, sr=sr)
     y_sep = np.stack(ys)
     H_bars = []
@@ -295,16 +307,16 @@ def splitActivationsAndAudio(
     return H_bars, bars
 
 
-def separateSamples(y: np.array, onsets: np.array) -> list:
+def separateSamples(y: np.array, sr: int, onsets: np.array, hop_length: int = 512) -> list:
     if len(onsets) <= 1:
         return []
 
     samples = []
-    frames = librosa.frames_to_samples(onsets)
+    frames = librosa.frames_to_samples(onsets, hop_length=hop_length)
     for i in range(len(onsets) - 1):
         sample = y[frames[i] : frames[i + 1]]
         sample = trimSample(sample)
-        if len(sample) < librosa.time_to_samples(0.1):
+        if len(sample) < librosa.time_to_samples(0.1, sr=sr):
             continue
         sample = env_sample(sample)
         samples.append(sample)
@@ -328,14 +340,14 @@ def longestRun(arr: np.array) -> tuple:
     return max_idx, max_len
 
 
-def trimSample(y: np.array, padding: int = 5) -> np.array:
-    rms = np.mean(librosa.feature.rms(y=y), axis=0)
+def trimSample(y: np.array, padding: int = 5, hop_length: int = 512) -> np.array:
+    rms = np.mean(librosa.feature.rms(y=y, hop_length=hop_length), axis=0)
     sound = rms > 0.001
 
     start_frame, max_len = longestRun(sound)
     end_frame = max_len + padding
 
-    start_idx, end_idx = librosa.frames_to_samples([start_frame, end_frame])
+    start_idx, end_idx = librosa.frames_to_samples([start_frame, end_frame], hop_length=hop_length)
 
     return y[start_idx:end_idx]
 
@@ -357,7 +369,7 @@ def isolatePeak(H: np.array, index: int):
     return start, end
 
 
-def getSamples(net: NMFD, chan: int) -> list:
+def getSamples(net: NMFD, chan: int, sr: int, hop_length: int = 512) -> list:
 
     H = net.H[0, chan].cpu().detach().numpy()
 
@@ -388,10 +400,35 @@ def getSamples(net: NMFD, chan: int) -> list:
     )
 
     S_clean = V_clean * np.exp(1j * net.phi)
-    y_clean = librosa.istft(S_clean)
+    y_clean = librosa.istft(S_clean, hop_length=hop_length)
 
     # use onsets of activations to indicate sample start times
-    onsets = librosa.onset.onset_detect(onset_envelope=H, backtrack=True, wait=0)
-    samples = separateSamples(y_clean, onsets)
+    onsets = librosa.onset.onset_detect(onset_envelope=H, backtrack=True, wait=0, sr=sr, hop_length=hop_length)
+    samples = separateSamples(y_clean, sr, onsets, hop_length=hop_length)
 
     return samples
+
+
+def reconstructDrums(H: np.ndarray, samples: list, length: int, hop_length: int = 512) -> np.ndarray:
+    if len(H) != len(samples):
+        raise ValueError(
+            f'H shape ({H.shape}) does not match number of samples ({len(samples)})'
+        )
+    
+    y_rec = np.zeros(length)
+    
+    for j, sample in enumerate(samples):
+        act = H[j]
+        peaks, _ = find_peaks(np.insert(act, 0, 0), prominence=3)
+        peaks -= 1
+        time = librosa.frames_to_samples(peaks, hop_length=hop_length)
+        
+        for i, p in enumerate(peaks):
+            amp = act[p]# / act.max()
+            sl = min(len(sample), length - time[i])
+            
+            y_rec[time[i]:time[i]+sl] += amp*sample[:sl]
+            
+    y_rec = normalise(y_rec)
+            
+    return y_rec
